@@ -99,7 +99,11 @@ Our model satisfies the linear assumptions of a regression model: residuals are 
 
  
  
+### FUTURE WORK:
 
+* Exploring what size of houses yield the best return on investment in each city.
+* Taking into account if the distance from the city center impacts the price of homes. 
+* Engineering new features that add more context to each city's impact on its house prices: schools, crime rate, etc.
 
 
  
