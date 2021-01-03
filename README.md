@@ -17,82 +17,90 @@ By the end of our analysis, we hope to provide recommendations on which area our
 
 ### The Data
 
-[Link to dataset on Kaggle](https://www.kaggle.com/becksddf/churn-in-telecoms-dataset)
-
-Our cliend supplied a data set containing information on about 3,300+ of their customers. Here's a detailed description of the features:
-
-* **state:** the state the user lives in
-* **account length:**  the number of days the user has this account
-* **area code:**  the code of the area the user lives in
-* **phone number:**  the phone number of the user
-* **international plan:** true if the user has the international plan, otherwise false
-* **voice mail plan:** true if the user has the voice mail plan, otherwise false
-* **number vmail messages:** the number of voice mail messages the user has sent
-* **total day minutes:** total number of minutes the user has been in calls during the day
-* **total day calls:** total number of calls the user has done during the day
-* **total day charge:** total amount of money the user was charged by the Telecom company for calls during the day
-* **total eve minutes:** total number of minutes the user has been in calls during the evening
-* **total eve calls:** total number of calls the user has done during the evening
-* **total eve charge:** total amount of money the user was charged by the Telecom company for calls during the evening
-* **total night minutes:** total number of minutes the user has been in calls during the night
-* **total night calls:** total number of calls the user has done during the night
-* **total night charge:** total amount of money the user was charged by the Telecom company for calls during the night
-* **total intl minutes:** total number of minutes the user has been in international calls
-* **total intl calls:** total number of international calls the user has done
-* **total intl charge:** total amount of money the user was charged by the Telecom company for international calls
-* **customer service calls:** number of customer service calls the user has done
-* **churn:** true if the user terminated the contract, otherwise false
+[Link to dataset on Kaggle](https://www.kaggle.com/harlfoxem/housesalesprediction)
 
 
+Our cliend supplied a data set containing information on about 21,000+ house sales in the region, which offered great insight into the King County housing market. 
+
+Here's a detailed explanation of each of the features of our dataset [(source)](https://www.slideshare.net/PawanShivhare1/predicting-king-county-house-prices): 
+
+![Column details](images/headers-explained.png)
 
 ### Data Cleanup and EDA
 
-This dataset was incredibly clean: no missing values, no duplicates, no crazy outliers. 
+As with most datasets, this one required some cleaning. Some of the highlights of our data preparation process included:
 
-The only issue I had to address was the significant class imbalance. I used SMOTE to fix that:
+* We **replaced null values** for features where over 3/4 of the existing values were 0 with zeros (e.g. waterfront, view)
+* We **removed all duplicates** which included houses that were sold multiple times and retained the most recent record. 
+* We **ensured that values in all columns are of numeric types** so they can work in a regression model 
 
-![churn vs no churn](images/nochurn-churn.png)
+Next, we proceeded with our exploration which focused on:
 
-Over 14% of the customers are in the churn category. 
+* identifying and removing outliers
+* checking the correlation between variables 
+* conducting several t-tests between features that appear to be highly correlated with our target **price**
 
-In the EDA notebook, I look at the relationship of individual features and decide which ones to keep and drop.
+Lastly, before we built our baseline model, we made sure to check the regression assumptions for linearity and multicollinearity. 
+With the help of a heatmap and some VIF scores, we dropped features that appeared to violate the multicollinearity assumption. 
 
-### Vanilla Models
+![features heatmap](images/heatmap.png)
 
-![vanilla models](images/vanilla-models.png)
+### Baseline Model and the Iterations that Followed
 
-I fit 10 different vanilla models to explore which ones are worth fine-tuning.
+![baseline summary](images/baseline_model.png)
 
-**Metric to use: Recall**
-Given the business problem at hand, I believe the best metric to use is Recall. It is better to categorize a loyal customer as someone likely to churn instead of misclassifying a departing customer as loyal, in which case we won't enroll them in our retention program. Financially, that could be the difference between offering someone a discount that wasn't really needed (in a False Positive scenario) vs. having to acquire an entirely new client to make up for False Negative.
+Our baseline model uses ten predictors: bedrooms, bathroom, sqft living, sqft lot, floors, waterfront, view, condition, yr_renovated, zipcode, condition and renovated. The first version of the model yielded a pretty inaccurate estimation of price, with an R-squared of 0.269. Looking at the coefficients, we noticed that the sqft of houses was among the most significant predictors. Also, the most significant impact on price (among our categorical features) from one category to another was zip codes. In addition to its insufficient predictive abilities, our model had probable heteroscedasticity and its residuals weren't as normally distribued as we would've liked.
+
+#### Second Iteration - Model 2
+
+To improve on our baseline, we engineered two additional features that quantified the value of zip codes a bit better: 
+
+ * **population density** for each zip code. We assume that zip codes with higher population density are more desirable and prices are higher than in zip codes with lower density.
+ * **median household income** for each zip code. Household finance experts assert that buyers can afford to pay up to three times their annual incomes for a home.
+ 
+ In addiiton, we also dropped "yr_renovated" as a predictor due to its high p-value. 
+ 
+ **THE RESULT:** Our R-squared doubled. The distribution of residuals looked way more normal, however heteroscedasticity persisted. 
+ 
+ 
+ #### Third Iteration - Model 3
+
+We did some additional data transformations to improve the model and hopefully take care of our heteroscedasticity problem (we hoped that improving the distribution of more skewed variables could just do the trick). We log-transformed our continuous variables (price, sqft_living, and sqft_lot) which led to their distributions looking more normal.
+
+  ![model3 assumptions](images/model_4_assumptions.png)
+
+ **THE RESULT:** We saw very slim improvement in our R-squared (0.607 --> 0.609). The distribution of residuals looked even better and more normal than in the previous two versions of the model. We are almost at 0 for the mean of our residuals. 
+
+
+#### Fourth Iteration - Model 4
+
+Since our client is interested in identifying the most profitable areas to build in, we wanted to express zip code as a more meaningful variable. We replace it with the name of the city. Since our regression model doesn't work with string values for our categorical variables, we turned the county's 13 cities into dummies. To avoid the dummy variable trap, we decided it's best to drop Seattle, which makes the most sense as a baseline for coefficient interpretation.
+
+
+**THE RESULT:** Our R-squared went up again (0.687): it now explains about 68.7% of our data variance. We have a few p-values over our 0.05 threshhold, which we dropped before the next iteration. The coefficients for cities, compared to the baseline Seattle, made sense. For example, prices in Black Diamond, Bellevue and Mercer Island go up compared to Seattle.
 
 
 ### THE FINAL MODEL 
 
-I used GridSearch to fine-tune two models using Bagged Trees and Gradient Boosting. The final model ended up being a Gradient Boosting model with a Recall Score of 93.28% and an Accuracy Score of 96.24%
+In our fifth and last iteration, we explored what interactions between our features could improve our model. The two that appeared to be most beneficial were between **sqft_living and floors** and between **sqft_living and bathrooms**. This step increased our R-Squared to 0.699.
 
-The most important predictors are:
+Our model is able to predict housing price with approximately 70% accuracy.
 
-* Customer Service Calls
-* Total Charge
-* International Plan
-* Voice Mail Plan
-* Total International Calls
- 
- ### BUSINESS RECOMMENDATIONS:
- 
-* If the telecom companies notices a client is calling the Customer Support line more than 4 times, it's a good idea to implement a retention plan. Perhaps by offering a discount. 
+Our model satisfies the linear assumptions of a regression model: residuals are normally distributed, features are not correlated with one another and the residuals follow homoscedasticity.
 
-* Customers who pay more than $40 are at a higher risk of canceling their contract. If a customer is paying more than that and calling your Customer Support line, that's a red flag you don't want to ignore.
+![final summary-1](images/final-summary-1.png)
+![final summary-2](images/final-summary-2.png)
 
- 
- 
+### BUSINESS RECOMMENDATIONS:
+
+* The following areas are positively related to price: Bellevue, Bothell, Fall City, Issaquah, Kirkland, Mercer Island, North Bend, Redmond and Vashon. We recommend the housing development company builds in one or more of these areas.  
+* Certain features of homes will also positively impact their price: a nice view of the property, good condition of the homes, and a high square footage of the home's living space, especially for homes with a larger number of floors and bathrooms.
+
+
 ### FUTURE WORK:
 
-* Exploring if area coverage has an impact on customer churn
-* Exploring if the state/city the customer lives in is a dominatede by another competitor 
-* Look into text message and Data utilization
-
-
+* Exploring what size of houses yield the best return on investment in each city.
+* Taking into account if the distance from the city center impacts the price of homes. 
+* Engineering new features that add more context to each city's impact on its house prices: schools, crime rate, etc.
  
-
+ 
